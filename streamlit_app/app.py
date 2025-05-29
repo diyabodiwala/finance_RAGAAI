@@ -2,42 +2,65 @@ import streamlit as st
 import openai
 import os
 import pyttsx3
+import whisper
+import tempfile
+import time
+from datetime import datetime
 
-# Load OpenAI API Key from environment
+# Initialize TTS engine
+engine = pyttsx3.init()
+
+# Set OpenAI API key from environment variable (works on Render)
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-st.title("Voice-Enabled Finance Assistant")
+# Whisper model for STT
+whisper_model = whisper.load_model("base")
 
-# Step 1: Upload Audio
-audio_file = st.file_uploader("🎙️ Upload your audio question (mp3/wav/m4a)", type=["wav", "mp3", "m4a"])
+# Function to convert voice to text
+def transcribe_audio(audio_file):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp:
+        temp.write(audio_file.read())
+        temp_path = temp.name
+    result = whisper_model.transcribe(temp_path)
+    return result["text"]
 
-if audio_file is not None:
-    with open("temp_audio.wav", "wb") as f:
-        f.write(audio_file.read())
-
-    # Step 2: Transcribe
-    with open("temp_audio.wav", "rb") as audio:
-        transcript = openai.Audio.transcribe("whisper-1", audio)
-
-    st.markdown("#### 📝 Transcribed Text")
-    st.write(transcript["text"])
-
-    # Step 3: Ask LLM
+# Function to get LLM response
+def ask_llm(context, question):
+    prompt = f"Context: {context}\nQuestion: {question}"
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": transcript["text"]}]
+        messages=[{"role": "user", "content": prompt}]
     )
-    answer = response['choices'][0]['message']['content']
+    return response['choices'][0]['message']['content']
 
-    st.markdown("#### 💡 Assistant's Answer")
-    st.write(answer)
-
-    # Step 4: Convert Answer to Speech
-    engine = pyttsx3.init()
-    engine.save_to_file(answer, 'response.mp3')
+# Function to speak out response
+def speak_text(text):
+    engine.say(text)
     engine.runAndWait()
 
-    # Step 5: Play Audio
-    audio_response = open('response.mp3', 'rb')
-    audio_bytes = audio_response.read()
-    st.audio(audio_bytes, format='audio/mp3')
+# Streamlit UI
+st.set_page_config(page_title="Voice Finance Assistant", layout="wide")
+st.title("🎙️ Voice-Powered Finance Assistant")
+st.markdown("Ask finance-related questions using your voice!")
+
+# Upload audio
+audio_input = st.file_uploader("Upload your question as a voice file (.wav)", type=["wav"])
+
+if audio_input:
+    st.info("Transcribing your audio...")
+    with st.spinner("Transcribing..."):
+        transcribed_text = transcribe_audio(audio_input)
+        st.success("Transcription Complete!")
+        st.write("🗣️ You said:", transcribed_text)
+
+    # LLM response
+    st.info("Generating response from assistant...")
+    with st.spinner("Thinking..."):
+        context = "Risk exposure in Asian tech stocks and earnings surprises."
+        llm_response = ask_llm(context, transcribed_text)
+        st.success("Here’s your answer:")
+        st.markdown(f"💬 **Assistant:** {llm_response}")
+
+        # Speak response
+        with st.spinner("Speaking..."):
+            speak_text(llm_response)

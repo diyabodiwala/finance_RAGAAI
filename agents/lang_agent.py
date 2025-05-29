@@ -1,6 +1,7 @@
 import openai
 import os
 
+# Use the environment variable set in Render dashboard
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 def ask_llm(context, question):
