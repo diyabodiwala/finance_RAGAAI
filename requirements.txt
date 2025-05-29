@@ -1,0 +1,12 @@
+
+streamlit
+fastapi
+uvicorn
+openai==0.28.0
+whisper
+pyttsx3
+yfinance
+beautifulsoup4
+requests
+faiss-cpu
+sentence-transformers
